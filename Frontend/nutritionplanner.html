@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutrition Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+<div class="flex h-screen">
+
+    <!-- Sidebar (always visible) -->
+    <aside class="w-64 bg-white shadow-sm flex-shrink-0">
+        <div class="p-6">
+            <h1 class="text-xl font-bold text-gray-800 mb-6">Dashboard</h1>
+            <nav class="space-y-2">
+                <a href="chatbot.html" class="block text-gray-600 p-3 rounded-lg hover:bg-gray-100">Chatbot</a>
+                <a href="nutritionplanner.html" class="block text-blue-700 bg-blue-50 p-3 rounded-lg">Nutrition Planner</a>
+                <a href="peakdata.html" class="block text-gray-600 p-3 rounded-lg hover:bg-gray-100">Peak Data</a>
+                <a href="connecteddevice.html" class="block text-gray-600 p-3 rounded-lg hover:bg-gray-100">Connected Devices</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Nutrition Planner Main Content -->
+    <main class="flex-1 overflow-auto p-10">
+        <div class="max-w-5xl mx-auto grid grid-cols-2 gap-12 h-full">
+
+            <!-- Form -->
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800 mb-6">Meal Plan Settings</h1>
+                <form id="nutrition-form" class="space-y-6">
+                    <div>
+                        <label for="goal" class="block text-sm font-medium text-gray-700">Goal</label>
+                        <select id="goal" name="goal" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option>Weight Loss</option>
+                            <option>Muscle Gain</option>
+                            <option>Maintenance</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="dietary-preference" class="block text-sm font-medium text-gray-700">Dietary Preference</label>
+                        <select id="dietary-preference" name="dietary-preference" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option>Balanced</option>
+                            <option>Low-Carb</option>
+                            <option>Vegetarian</option>
+                            <option>Vegan</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="calories" class="block text-sm font-medium text-gray-700">Daily Calories Target</label>
+                        <input type="number" name="calories" id="calories" value="0" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+
+                    <div>
+                        <label for="meals" class="block text-sm font-medium text-gray-700">Meals Per Day</label>
+                        <input type="number" name="meals" id="meals" value="0" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+
+                    <div>
+                        <label for="restrictions" class="block text-sm font-medium text-gray-700">Dietary Restrictions (Optional)</label>
+                        <textarea id="restrictions" name="restrictions" rows="4" placeholder="e.g. No nuts, gluten-free, dairy-free" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
+                    </div>
+
+                    <div>
+                        <button type="submit" class="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Generate Meal Plan
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Meal Plan Display -->
+            <div id="meal-plan-output" class="flex flex-col bg-white rounded-lg border-2 border-dashed border-gray-200 p-6 overflow-auto max-h-[80vh]">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Your Meal Plan</h2>
+                <div id="meal-plan-content" class="text-gray-700 whitespace-pre-line"></div>
+            </div>
+
+        </div>
+    </main>
+
+</div>
+
+<script>
+document.getElementById("nutrition-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const outputDiv = document.getElementById("meal-plan-content");
+    outputDiv.textContent = "Generating your meal plan...";
+
+    try {
+        const response = await fetch("http://127.0.0.1:8000/api/nutrition", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                goal: document.getElementById("goal").value,
+                dietary_preference: document.getElementById("dietary-preference").value,
+                calories: parseInt(document.getElementById("calories").value),
+                meals: parseInt(document.getElementById("meals").value),
+                restrictions: document.getElementById("restrictions").value
+            })
+        });
+
+        const data = await response.json();
+        outputDiv.innerHTML = marked.parse(data.meal_plan);
+    } catch (err) {
+        outputDiv.textContent = "Error generating meal plan: " + err;
+    }
+});
+</script>
+
+</body>
+</html>

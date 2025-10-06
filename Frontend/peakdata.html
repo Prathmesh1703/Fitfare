@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gym Peak Hours Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+
+<div class="flex h-screen">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-white shadow-sm flex-shrink-0">
+    <div class="p-6">
+      <h1 class="text-xl font-bold text-gray-800 mb-6">Dashboard</h1>
+      <nav class="space-y-2">
+        <a href="chatbot.html" class="block text-gray-600 p-3 rounded-lg hover:bg-gray-100">Chatbot</a>
+        <a href="nutritionplanner.html" class="block text-gray-600 p-3 rounded-lg hover:bg-gray-100">Nutrition Planner</a>
+        <a href="peakdata.html" class="block text-blue-700 bg-blue-50 p-3 rounded-lg">Peak Data</a>
+        <a href="connecteddevice.html" class="block text-gray-600 p-3 rounded-lg hover:bg-gray-100">Connected Devices</a>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-auto p-6">
+    <div class="max-w-7xl mx-auto">
+
+      <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Gym Peak Hours Dashboard</h1>
+
+      <div class="bg-white shadow-md rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-4">Filters</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block font-medium mb-1">Select Gym:</label>
+            <select id="gymSelect" class="w-full border rounded px-3 py-2"></select>
+          </div>
+          <div>
+            <label class="block font-medium mb-1">Start Date:</label>
+            <input type="date" id="startDate" class="w-full border rounded px-3 py-2">
+          </div>
+          <div>
+            <label class="block font-medium mb-1">End Date:</label>
+            <input type="date" id="endDate" class="w-full border rounded px-3 py-2">
+          </div>
+          <div class="flex items-end">
+            <button id="updateBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">Update Dashboard</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="summary" class="bg-white shadow-md rounded-lg p-6 mb-6 text-gray-800"></div>
+
+      <div id="charts" class="grid grid-cols-1 gap-8">
+        <div class="bg-white shadow-md rounded-lg p-4">
+          <h3 class="text-lg font-semibold mb-3">Overall Hourly Distribution</h3>
+          <div id="overallChart" class="h-96"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="bg-white shadow-md rounded-lg p-4">
+            <h3 class="text-lg font-semibold mb-3">Morning Activity (5 AM - 12 PM)</h3>
+            <div id="morningChart" class="h-80"></div>
+          </div>
+          <div class="bg-white shadow-md rounded-lg p-4">
+            <h3 class="text-lg font-semibold mb-3">Evening Activity (5 PM - 10 PM)</h3>
+            <div id="eveningChart" class="h-80"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+</div>
+
+<script>
+let gymData = [];
+
+async function loadCSV() {
+    return new Promise((resolve, reject) => {
+        Papa.parse("synthetic_gym_multi.csv", {
+            header: true,
+            download: true,
+            dynamicTyping: true,
+            complete: function(results) {
+                gymData = results.data.filter(row => row.GymID);
+                populateGymSelect();
+                resolve();
+            },
+            error: function(err) {
+                reject(err);
+            }
+        });
+    });
+}
+
+function populateGymSelect() {
+    const gymSelect = document.getElementById("gymSelect");
+    const gyms = [...new Set(gymData.map(d => d.GymName))];
+    gyms.forEach(g => {
+        const opt = document.createElement("option");
+        opt.value = g;
+        opt.text = g;
+        gymSelect.appendChild(opt);
+    });
+}
+
+function filterData() {
+    const gymName = document.getElementById("gymSelect").value;
+    const startDate = document.getElementById("startDate").value;
+    const endDate = document.getElementById("endDate").value;
+
+    return gymData.filter(d => {
+        const date = new Date(d.CheckInTime);
+        return d.GymName === gymName &&
+               (!startDate || date >= new Date(startDate)) &&
+               (!endDate || date <= new Date(endDate));
+    });
+}
+
+function computeHourlyCounts(data) {
+    const hours = Array.from({length: 24}, (_, i) => i);
+    const counts = Array(24).fill(0);
+    data.forEach(d => {
+        const hour = new Date(d.CheckInTime).getHours();
+        counts[hour]++;
+    });
+    return {hours, counts};
+}
+
+function bestTwoHourWindow(counts, startHour, endHour) {
+    let bestSum = -1;
+    let bestStart = startHour;
+    for (let i = startHour; i <= endHour-1; i++) {
+        const sum = counts[i] + counts[i+1];
+        if (sum > bestSum) {
+            bestSum = sum;
+            bestStart = i;
+        }
+    }
+    return [bestStart, bestStart+1];
+}
+
+function updateDashboard() {
+    const filtered = filterData();
+    if(filtered.length === 0) {
+        document.getElementById("summary").innerText = "No data for selected gym/date range.";
+        Plotly.purge("overallChart");
+        Plotly.purge("morningChart");
+        Plotly.purge("eveningChart");
+        return;
+    }
+
+    const {hours, counts} = computeHourlyCounts(filtered);
+
+    const overallPeak = counts.indexOf(Math.max(...counts));
+    const [morningStart, morningEnd] = bestTwoHourWindow(counts, 5, 11);
+    const [eveningStart, eveningEnd] = bestTwoHourWindow(counts, 17, 22);
+
+    document.getElementById("summary").innerHTML = `
+        <strong>Summary:</strong><br>
+        Total check-ins: ${filtered.length}<br>
+        Busiest hour: ${overallPeak}:00<br>
+        Peak morning (2-hr): ${morningStart}:00 - ${morningEnd+1}:00<br>
+        Peak evening (2-hr): ${eveningStart}:00 - ${eveningEnd+1}:00
+    `;
+
+    Plotly.newPlot("overallChart", [{ x: hours, y: counts, type: "bar", marker: {color: "skyblue"} }], {xaxis: {title: "Hour"}, yaxis: {title: "Check-ins"}});
+    Plotly.newPlot("morningChart", [{ x: hours.slice(5,12), y: counts.slice(5,12), type: "bar", marker: {color: "orange"} }], {xaxis: {title: "Hour"}, yaxis: {title: "Check-ins"}});
+    Plotly.newPlot("eveningChart", [{ x: hours.slice(17,23), y: counts.slice(17,23), type: "bar", marker: {color: "green"} }], {xaxis: {title: "Hour"}, yaxis: {title: "Check-ins"}});
+}
+
+loadCSV().then(() => {
+    const dates = gymData.map(d => new Date(d.CheckInTime));
+    const minDate = new Date(Math.min.apply(null, dates));
+    const maxDate = new Date(Math.max.apply(null, dates));
+    document.getElementById("startDate").value = minDate.toISOString().split("T")[0];
+    document.getElementById("endDate").value = maxDate.toISOString().split("T")[0];
+
+    document.getElementById("updateBtn").addEventListener("click", updateDashboard);
+    updateDashboard();
+});
+</script>
+
+</body>
+</html>

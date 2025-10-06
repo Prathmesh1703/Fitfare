@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitfare Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+<div class="flex h-screen">
+
+    <!-- Sidebar (always visible) -->
+    <aside class="w-64 bg-white shadow-sm flex-shrink-0">
+        <div class="p-6">
+            <h1 class="text-xl font-bold text-gray-800 mb-6">Dashboard</h1>
+            <nav class="space-y-2">
+                <a href="chatbot.html" class="block text-blue-700 bg-blue-50 p-3 rounded-lg">Chatbot</a>
+                <a href="nutritionplanner.html" class="block text-gray-600 p-3 rounded-lg hover:bg-gray-100">Nutrition Planner</a>
+                <a href="peakdata.html" class="block text-gray-600 p-3 rounded-lg hover:bg-gray-100">Peak Data</a>
+                <a href="connecteddevice.html" class="block text-gray-600 p-3 rounded-lg hover:bg-gray-100">Connected Devices</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Chatbot Main Content -->
+    <main class="flex-1 flex justify-center items-center p-6">
+        <div class="bg-white shadow-lg rounded-lg w-full max-w-4xl h-full flex flex-col">
+            
+            <!-- Chat Display -->
+            <div id="chat" class="flex-1 overflow-y-auto mb-4 border p-4 rounded bg-gray-50"></div>
+            
+            <!-- Input Area -->
+            <div class="flex">
+                <input id="messageInput" type="text" placeholder="Type a message..."
+                       class="flex-1 p-3 border rounded-l focus:outline-none">
+                <button id="sendBtn" class="bg-blue-500 text-white px-6 rounded-r hover:bg-blue-600">Send</button>
+            </div>
+
+        </div>
+    </main>
+
+</div>
+
+<script>
+const chatDiv = document.getElementById("chat");
+const messageInput = document.getElementById("messageInput");
+const sendBtn = document.getElementById("sendBtn");
+
+async function sendMessage() {
+    const message = messageInput.value.trim();
+    if (!message) return;
+
+    // Append user's message
+    appendMessage("You", message);
+    messageInput.value = "";
+
+    // Add a temporary "typing..." message
+    const typingMsg = document.createElement("div");
+    typingMsg.classList.add("mb-2", "text-gray-500", "italic");
+    typingMsg.innerText = "typing...";
+    chatDiv.appendChild(typingMsg);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+
+    try {
+        const response = await fetch("http://127.0.0.1:8000/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message })
+        });
+        const data = await response.json();
+
+        // Remove typing indicator
+        typingMsg.remove();
+
+        // Append actual response
+        appendMessage("Fitfare", data.reply);
+    } catch (error) {
+        typingMsg.remove();
+        appendMessage("Fitfare", "Error: Could not connect to server.");
+    }
+}
+
+
+function appendMessage(sender, text) {
+    const msg = document.createElement("div");
+    msg.classList.add("mb-4");
+
+    // Render Markdown into HTML
+    msg.innerHTML = `
+        <div class="bg-gray-50 p-3 rounded-lg shadow-sm">
+        <strong class="text-blue-600">${sender}:</strong>
+        <div class="mt-1 text-gray-700">${marked.parse(text)}</div>
+    </div>
+    `;
+
+    chatDiv.appendChild(msg);
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+
+sendBtn.addEventListener("click", sendMessage);
+messageInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendMessage();
+});
+</script>
+
+</body>
+</html>
